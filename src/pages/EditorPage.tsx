@@ -17,6 +17,7 @@ export const EditorPage = () => {
   const [editorContent, setEditorContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showPushPanel, setShowPushPanel] = useState(false);
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
 
   // Load files from IndexedDB
   const files = useLiveQuery(
@@ -113,56 +114,73 @@ export const EditorPage = () => {
     <div className="h-screen flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setShowMobileDrawer(true)}
+              className="md:hidden text-gray-600 hover:text-gray-900 p-2"
+              aria-label="ファイル一覧を開く"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
+            {/* Back Button (desktop) */}
             <button
               onClick={() => navigate('/repositories')}
-              className="text-gray-600 hover:text-gray-900 transition"
+              className="hidden md:block text-gray-600 hover:text-gray-900 transition whitespace-nowrap"
             >
               ← リポジトリ一覧
             </button>
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">
+
+            {/* Title */}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base md:text-lg font-semibold text-gray-900 truncate">
                 {repository.name}
               </h1>
               {currentFile && (
-                <p className="text-sm text-gray-500">{currentFile.path}</p>
+                <p className="text-xs md:text-sm text-gray-500 truncate">{currentFile.path}</p>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {/* Save Status (desktop only) */}
             {isSaving && (
-              <span className="text-sm text-gray-500">保存中...</span>
+              <span className="hidden md:inline text-sm text-gray-500">保存中...</span>
             )}
             {currentFile?.isDirty && !isSaving && (
-              <span className="text-sm text-orange-600">未保存の変更</span>
+              <span className="hidden md:inline text-sm text-orange-600">未保存</span>
             )}
 
             {/* Push Button */}
             {dirtyFiles.length > 0 && (
               <button
                 onClick={() => setShowPushPanel(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+                className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-2 text-xs md:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
               >
-                <span>変更をプッシュ</span>
+                <span className="hidden sm:inline">変更をプッシュ</span>
+                <span className="sm:hidden">Push</span>
                 <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-white text-blue-600 rounded-full">
                   {dirtyFiles.length}
                 </span>
               </button>
             )}
 
+            {/* User Menu */}
             <div className="flex items-center gap-2">
               {user?.avatar_url && (
                 <img
                   src={user.avatar_url}
                   alt={user.login}
-                  className="w-8 h-8 rounded-full"
+                  className="w-7 h-7 md:w-8 md:h-8 rounded-full"
                 />
               )}
               <button
                 onClick={logout}
-                className="text-sm text-gray-600 hover:text-gray-900"
+                className="hidden md:block text-sm text-gray-600 hover:text-gray-900"
               >
                 ログアウト
               </button>
@@ -173,14 +191,51 @@ export const EditorPage = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* File Tree Sidebar */}
-        <div className="w-64 flex-shrink-0">
+        {/* File Tree Sidebar - Desktop */}
+        <div className="hidden md:block w-64 flex-shrink-0">
           <FileTree
             files={files || []}
             currentFilePath={currentFile?.path || null}
             onFileSelect={handleFileSelect}
           />
         </div>
+
+        {/* File Tree Drawer - Mobile */}
+        {showMobileDrawer && (
+          <div className="md:hidden fixed inset-0 z-40">
+            {/* Overlay */}
+            <div
+              className="absolute inset-0 bg-black bg-opacity-50"
+              onClick={() => setShowMobileDrawer(false)}
+            />
+
+            {/* Drawer */}
+            <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-xl">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">ファイル一覧</h2>
+                <button
+                  onClick={() => setShowMobileDrawer(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2"
+                  aria-label="閉じる"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="h-[calc(100%-73px)] overflow-y-auto">
+                <FileTree
+                  files={files || []}
+                  currentFilePath={currentFile?.path || null}
+                  onFileSelect={(file) => {
+                    handleFileSelect(file);
+                    setShowMobileDrawer(false);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Editor */}
         <div className="flex-1 bg-white">
@@ -191,11 +246,12 @@ export const EditorPage = () => {
               onSave={handleSave}
             />
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-500">
+            <div className="h-full flex items-center justify-center text-gray-500 p-4">
               <div className="text-center">
-                <p className="text-lg mb-2">ファイルを選択してください</p>
+                <p className="text-base md:text-lg mb-2">ファイルを選択してください</p>
                 <p className="text-sm">
-                  左側のファイルツリーからファイルを選択すると、編集できます
+                  <span className="md:hidden">メニューボタンからファイルを選択すると、編集できます</span>
+                  <span className="hidden md:inline">左側のファイルツリーからファイルを選択すると、編集できます</span>
                 </p>
               </div>
             </div>

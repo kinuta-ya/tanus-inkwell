@@ -59,18 +59,18 @@ export const RepositoriesPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
+      <div className="max-w-7xl mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">リポジトリ一覧</h1>
-            <p className="mt-2 text-gray-600">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">リポジトリ一覧</h1>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">
               執筆に使用するリポジトリを選択してください
             </p>
           </div>
           <button
             onClick={handleRefresh}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed self-end sm:self-auto"
           >
             {isLoading ? '更新中...' : '更新'}
           </button>
@@ -106,10 +106,10 @@ export const RepositoriesPage = () => {
 
         {repositories.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">リポジトリが見つかりませんでした</p>
+            <p className="text-sm sm:text-base text-gray-500">リポジトリが見つかりませんでした</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {repositories.map((repo) => (
               <RepositoryCard
                 key={repo.id}
