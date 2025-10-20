@@ -54,11 +54,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   checkAuth: async () => {
+    console.log('[AuthStore] checkAuth called');
     set({ isLoading: true });
     try {
       const user = await authService.validateStoredToken();
       if (user) {
         const token = authService.getStoredToken();
+        console.log('[AuthStore] User authenticated:', user.login);
         set({
           isAuthenticated: true,
           githubToken: token,
@@ -66,6 +68,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
           isLoading: false,
         });
       } else {
+        console.log('[AuthStore] No valid user found');
         set({
           isAuthenticated: false,
           githubToken: null,
@@ -74,6 +77,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
         });
       }
     } catch (error) {
+      console.error('[AuthStore] checkAuth error:', error);
       set({
         isAuthenticated: false,
         githubToken: null,

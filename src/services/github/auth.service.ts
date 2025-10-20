@@ -42,7 +42,9 @@ export class GitHubAuthService {
    * Get stored token from LocalStorage
    */
   getStoredToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+    console.log('[Auth] getStoredToken:', token ? 'Found' : 'Not found');
+    return token;
   }
 
   /**
@@ -50,21 +52,28 @@ export class GitHubAuthService {
    */
   private saveToken(token: string): void {
     localStorage.setItem(TOKEN_KEY, token);
+    console.log('[Auth] Token saved to LocalStorage');
   }
 
   /**
    * Validate if stored token is still valid
    */
   async validateStoredToken(): Promise<GitHubUser | null> {
+    console.log('[Auth] Validating stored token...');
     const token = this.getStoredToken();
     if (!token) {
+      console.log('[Auth] No token found');
       return null;
     }
 
     try {
-      return await this.login(token);
-    } catch {
+      console.log('[Auth] Attempting to validate token...');
+      const user = await this.login(token);
+      console.log('[Auth] Token is valid, user:', user.login);
+      return user;
+    } catch (error) {
       // Token is invalid, remove it
+      console.error('[Auth] Token validation failed:', error);
       this.logout();
       return null;
     }
