@@ -182,7 +182,10 @@ class GitHubRepositoryService {
     try {
       const octokit = this.getOctokit(token);
 
-      const encodedContent = Buffer.from(content, 'utf-8').toString('base64');
+      console.log(`[GitHub API] Updating file: ${path}`);
+
+      // Encode content to base64 (browser-compatible)
+      const encodedContent = btoa(unescape(encodeURIComponent(content)));
 
       const { data } = await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
         owner,
@@ -193,10 +196,17 @@ class GitHubRepositoryService {
         sha,
       });
 
+      console.log(`[GitHub API] Successfully updated: ${path}`);
+
       return data as { sha: string; content: { sha: string } };
     } catch (error) {
-      console.error('Failed to update file content:', error);
-      throw new Error('Failed to update file content');
+      console.error('Failed to update file content:', {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+        response: (error as any)?.response?.data,
+        status: (error as any)?.response?.status,
+      });
+      throw error;
     }
   }
 }

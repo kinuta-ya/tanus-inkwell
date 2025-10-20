@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useRepositoryStore } from '../stores/repositoryStore';
 import { FileTree } from '../components/file/FileTree';
 import { MarkdownEditor } from '../components/editor/MarkdownEditor';
+import { PushPanel } from '../components/sync/PushPanel';
 import { db, type StoredFile } from '../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 
@@ -15,6 +16,7 @@ export const EditorPage = () => {
   const [currentFile, setCurrentFile] = useState<StoredFile | null>(null);
   const [editorContent, setEditorContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showPushPanel, setShowPushPanel] = useState(false);
 
   // Load files from IndexedDB
   const files = useLiveQuery(
@@ -29,13 +31,19 @@ export const EditorPage = () => {
   // Find current repository
   const repository = currentRepository || repositories.find((r) => r.id === repoId);
 
+  // Count dirty files
+  const dirtyFiles = useMemo(() => {
+    return files?.filter((f) => f.isDirty) || [];
+  }, [files]);
+
   useEffect(() => {
     console.log(`[Editor] repoId: ${repoId}`);
     console.log(`[Editor] files loaded:`, files?.length || 0);
+    console.log(`[Editor] dirty files:`, dirtyFiles.length);
     if (files && files.length > 0) {
       console.log('[Editor] File repoIds:', files.map(f => f.repoId));
     }
-  }, [repoId, files]);
+  }, [repoId, files, dirtyFiles]);
 
   useEffect(() => {
     if (!repository && repoId) {
@@ -130,6 +138,20 @@ export const EditorPage = () => {
             {currentFile?.isDirty && !isSaving && (
               <span className="text-sm text-orange-600">未保存の変更</span>
             )}
+
+            {/* Push Button */}
+            {dirtyFiles.length > 0 && (
+              <button
+                onClick={() => setShowPushPanel(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+              >
+                <span>変更をプッシュ</span>
+                <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-white text-blue-600 rounded-full">
+                  {dirtyFiles.length}
+                </span>
+              </button>
+            )}
+
             <div className="flex items-center gap-2">
               {user?.avatar_url && (
                 <img
@@ -180,6 +202,21 @@ export const EditorPage = () => {
           )}
         </div>
       </div>
+
+      {/* Push Panel */}
+      {showPushPanel && repository && (
+        <PushPanel
+          repository={repository}
+          dirtyFiles={dirtyFiles}
+          allFiles={files || []}
+          onClose={() => setShowPushPanel(false)}
+          onPushComplete={() => {
+            setShowPushPanel(false);
+            // Files will be automatically refreshed by useLiveQuery
+            // No need to reload the page
+          }}
+        />
+      )}
     </div>
   );
 };
