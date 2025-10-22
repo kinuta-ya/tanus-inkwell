@@ -58,7 +58,7 @@ class GitHubRepositoryService {
         affiliation: 'owner',
       });
 
-      return data.map((repo: GitHubRepository) => ({
+      return data.map((repo) => ({
         id: repo.id.toString(),
         name: repo.name,
         fullName: repo.full_name,
@@ -102,7 +102,7 @@ class GitHubRepositoryService {
         recursive: '1',
       });
 
-      return treeData.tree;
+      return treeData.tree as GitHubTreeItem[];
     } catch (error) {
       console.error('Failed to fetch repository tree:', error);
 
@@ -198,7 +198,10 @@ class GitHubRepositoryService {
 
       console.log(`[GitHub API] Successfully updated: ${path}`);
 
-      return data as { sha: string; content: { sha: string } };
+      return {
+        sha: data.commit.sha || '',
+        content: { sha: data.content?.sha || '' }
+      };
     } catch (error) {
       console.error('Failed to update file content:', {
         path,
