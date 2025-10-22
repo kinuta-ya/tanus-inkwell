@@ -1,9 +1,12 @@
 name: Deploy to EC2
 
+# このワークフローはmainブランチへのマージ時のみ実行されます
+# PRのビルドチェックはci.ymlで実行されます
+
 on:
   push:
     branches:
-      - main  # mainブランチへのpush時に実行
+      - main  # mainブランチへのpush（マージ）時に本番デプロイを実行
 
 jobs:
   deploy:
@@ -32,6 +35,10 @@ jobs:
           EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          # SSHディレクトリを作成
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
           # SSH秘密鍵を一時ファイルに保存
           echo "$EC2_KEY" > private_key.pem
           chmod 600 private_key.pem
