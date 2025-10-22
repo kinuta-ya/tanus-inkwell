@@ -1,9 +1,12 @@
 name: Deploy to EC2
 
+# このワークフローはmainブランチへのマージ時のみ実行されます
+# PRのビルドチェックはci.ymlで実行されます
+
 on:
   push:
     branches:
-      - main  # mainブランチへのpush時に実行
+      - main  # mainブランチへのpush（マージ）時に本番デプロイを実行
 
 jobs:
   deploy:
