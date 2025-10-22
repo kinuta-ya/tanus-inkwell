@@ -1,0 +1,62 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main  # mainブランチへのpush時に実行
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          # SSH秘密鍵を一時ファイルに保存
+          echo "$EC2_KEY" > private_key.pem
+          chmod 600 private_key.pem
+
+          # known_hostsにEC2を追加（初回接続時のプロンプト回避）
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+
+          # distフォルダをEC2に転送
+          scp -i private_key.pem -r dist/* $EC2_USER@$EC2_HOST:$DEPLOY_PATH
+
+          # 秘密鍵を削除
+          rm -f private_key.pem
+
+      - name: Restart web server (optional)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          # SSH秘密鍵を一時ファイルに保存
+          echo "$EC2_KEY" > private_key.pem
+          chmod 600 private_key.pem
+
+          # Nginxの再起動（必要に応じてコメントアウト解除）
+          # ssh -i private_key.pem $EC2_USER@$EC2_HOST "sudo systemctl restart nginx"
+
+          # 秘密鍵を削除
+          rm -f private_key.pem
