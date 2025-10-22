@@ -1,15 +1,20 @@
-name: Deploy to EC2
+name: CI and Deploy
 
-# このワークフローはmainブランチへのマージ時のみ実行されます
-# PRのビルドチェックはci.ymlで実行されます
+# すべてのpushとPRでCIチェックを実行
+# mainブランチへのpush時のみデプロイも実行
 
 on:
   push:
     branches:
-      - main  # mainブランチへのpush（マージ）時に本番デプロイを実行
+      - '**'  # すべてのブランチ
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  deploy:
+  # CI: ビルドチェック（常に実行）
+  ci:
+    name: Build Check
     runs-on: ubuntu-latest
 
     steps:
@@ -25,8 +30,56 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run TypeScript type check
+        run: npx tsc -b --noEmit
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true  # Lintエラーでもビルドは続行
+
       - name: Build
         run: npm run build
+
+      - name: Check build output
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed: dist directory not found"
+            exit 1
+          fi
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ Build failed: index.html not found"
+            exit 1
+          fi
+          echo "✅ Build successful!"
+          echo "📦 Build size:"
+          du -sh dist/
+          echo ""
+          echo "📄 Files:"
+          ls -lh dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: dist/
+          retention-days: 7
+
+  # Deploy: EC2へのデプロイ（mainブランチかつCI成功時のみ）
+  deploy:
+    name: Deploy to EC2
+    needs: ci  # CIジョブが成功した場合のみ実行
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: dist/
 
       - name: Deploy to EC2
         env:
@@ -35,35 +88,50 @@ jobs:
           EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          # SSHディレクトリを作成
+          set -e  # エラー時に即座に終了
+
+          echo "📁 SSHディレクトリを作成中..."
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # SSH秘密鍵を一時ファイルに保存
+          echo "🔑 SSH秘密鍵を設定中..."
           echo "$EC2_KEY" > private_key.pem
           chmod 600 private_key.pem
 
-          # known_hostsにEC2を追加（初回接続時のプロンプト回避）
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          echo "🔍 秘密鍵の確認（最初の2行）..."
+          head -n 2 private_key.pem || echo "⚠️ 秘密鍵の読み取りに失敗"
 
-          # distフォルダをEC2に転送
-          scp -i private_key.pem -r dist/* $EC2_USER@$EC2_HOST:$DEPLOY_PATH
+          echo "🌐 EC2ホストをknown_hostsに追加中: $EC2_HOST"
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>&1 || {
+            echo "❌ ssh-keyscanが失敗しました"
+            echo "ホストに到達できない可能性があります"
+            exit 1
+          }
+
+          echo "✅ known_hosts追加完了"
+
+          echo "📦 ビルドファイルを確認中..."
+          ls -lah dist/ || {
+            echo "❌ distディレクトリが見つかりません"
+            exit 1
+          }
+
+          echo "🚀 EC2への転送を開始: $EC2_USER@$EC2_HOST:$DEPLOY_PATH"
+          scp -v -i private_key.pem -o StrictHostKeyChecking=no -r dist/* $EC2_USER@$EC2_HOST:$DEPLOY_PATH 2>&1 || {
+            echo "❌ SCPでの転送が失敗しました"
+            echo "考えられる原因:"
+            echo "  - EC2のセキュリティグループでSSH（ポート22）が許可されていない"
+            echo "  - DEPLOY_PATHが存在しない、または権限がない"
+            echo "  - SSH秘密鍵のフォーマットが正しくない"
+            exit 1
+          }
+
+          echo "✅ デプロイ完了！"
 
           # 秘密鍵を削除
           rm -f private_key.pem
 
-      - name: Restart web server (optional)
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
+      - name: Deployment summary
         run: |
-          # SSH秘密鍵を一時ファイルに保存
-          echo "$EC2_KEY" > private_key.pem
-          chmod 600 private_key.pem
-
-          # Nginxの再起動（必要に応じてコメントアウト解除）
-          # ssh -i private_key.pem $EC2_USER@$EC2_HOST "sudo systemctl restart nginx"
-
-          # 秘密鍵を削除
-          rm -f private_key.pem
+          echo "🎉 デプロイが正常に完了しました！"
+          echo "🌍 アプリケーションURL: http://${{ secrets.EC2_HOST }}"
