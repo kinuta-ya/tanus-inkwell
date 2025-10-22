@@ -169,3 +169,5 @@ npm run dev
 - [Octokit.js](https://github.com/octokit/octokit.js)
 - [CodeMirror 6](https://codemirror.net/)
 - [Dexie.js](https://dexie.org/) (IndexedDB wrapper)
+
+<!-- CI test: trigger status check -->
