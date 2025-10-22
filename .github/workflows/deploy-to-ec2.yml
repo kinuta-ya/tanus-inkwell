@@ -35,19 +35,45 @@ jobs:
           EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          # SSHディレクトリを作成
+          set -e  # エラー時に即座に終了
+
+          echo "📁 SSHディレクトリを作成中..."
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # SSH秘密鍵を一時ファイルに保存
+          echo "🔑 SSH秘密鍵を設定中..."
           echo "$EC2_KEY" > private_key.pem
           chmod 600 private_key.pem
 
-          # known_hostsにEC2を追加（初回接続時のプロンプト回避）
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          echo "🔍 秘密鍵の確認（最初の2行）..."
+          head -n 2 private_key.pem || echo "⚠️ 秘密鍵の読み取りに失敗"
 
-          # distフォルダをEC2に転送
-          scp -i private_key.pem -r dist/* $EC2_USER@$EC2_HOST:$DEPLOY_PATH
+          echo "🌐 EC2ホストをknown_hostsに追加中: $EC2_HOST"
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>&1 || {
+            echo "❌ ssh-keyscanが失敗しました"
+            echo "ホストに到達できない可能性があります"
+            exit 1
+          }
+
+          echo "✅ known_hosts追加完了"
+
+          echo "📦 ビルドファイルを確認中..."
+          ls -lah dist/ || {
+            echo "❌ distディレクトリが見つかりません"
+            exit 1
+          }
+
+          echo "🚀 EC2への転送を開始: $EC2_USER@$EC2_HOST:$DEPLOY_PATH"
+          scp -v -i private_key.pem -o StrictHostKeyChecking=no -r dist/* $EC2_USER@$EC2_HOST:$DEPLOY_PATH 2>&1 || {
+            echo "❌ SCPでの転送が失敗しました"
+            echo "考えられる原因:"
+            echo "  - EC2のセキュリティグループでSSH（ポート22）が許可されていない"
+            echo "  - DEPLOY_PATHが存在しない、または権限がない"
+            echo "  - SSH秘密鍵のフォーマットが正しくない"
+            exit 1
+          }
+
+          echo "✅ デプロイ完了！"
 
           # 秘密鍵を削除
           rm -f private_key.pem
