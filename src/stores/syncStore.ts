@@ -55,15 +55,31 @@ export const useSyncStore = create<SyncStore>((set) => ({
         try {
           console.log(`[Push] Pushing file ${i + 1}/${dirtyFiles.length}: ${file.path}`);
 
-          const result = await repositoryService.updateFileContent(
-            token,
-            owner,
-            repoName,
-            file.path,
-            file.content,
-            file.githubSha,
-            commitMessage
-          );
+          let result;
+
+          // Check if this is a new file (empty githubSha) or existing file
+          if (!file.githubSha || file.githubSha === '') {
+            console.log(`[Push] Creating new file: ${file.path}`);
+            result = await repositoryService.createFile(
+              token,
+              owner,
+              repoName,
+              file.path,
+              file.content,
+              commitMessage
+            );
+          } else {
+            console.log(`[Push] Updating existing file: ${file.path}`);
+            result = await repositoryService.updateFileContent(
+              token,
+              owner,
+              repoName,
+              file.path,
+              file.content,
+              file.githubSha,
+              commitMessage
+            );
+          }
 
           // Update the file in DB to mark it as clean and update SHA
           await db.files.update(file.id, {
