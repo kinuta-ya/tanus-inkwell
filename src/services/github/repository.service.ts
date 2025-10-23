@@ -168,6 +168,51 @@ class GitHubRepositoryService {
   }
 
   /**
+   * Create new file
+   */
+  async createFile(
+    token: string,
+    owner: string,
+    repo: string,
+    path: string,
+    content: string,
+    message: string
+  ): Promise<{ sha: string; content: { sha: string } }> {
+    try {
+      const octokit = this.getOctokit(token);
+
+      console.log(`[GitHub API] Creating new file: ${path}`);
+
+      // Encode content to base64 (browser-compatible)
+      const encodedContent = btoa(unescape(encodeURIComponent(content)));
+
+      const { data } = await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
+        owner,
+        repo,
+        path,
+        message,
+        content: encodedContent,
+        // No sha means creating a new file
+      });
+
+      console.log(`[GitHub API] Successfully created: ${path}`);
+
+      return {
+        sha: data.commit.sha || '',
+        content: { sha: data.content?.sha || '' }
+      };
+    } catch (error) {
+      console.error('Failed to create file:', {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+        response: (error as any)?.response?.data,
+        status: (error as any)?.response?.status,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Update file content
    */
   async updateFileContent(
@@ -204,6 +249,42 @@ class GitHubRepositoryService {
       };
     } catch (error) {
       console.error('Failed to update file content:', {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+        response: (error as any)?.response?.data,
+        status: (error as any)?.response?.status,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete file
+   */
+  async deleteFile(
+    token: string,
+    owner: string,
+    repo: string,
+    path: string,
+    sha: string,
+    message: string
+  ): Promise<void> {
+    try {
+      const octokit = this.getOctokit(token);
+
+      console.log(`[GitHub API] Deleting file: ${path}`);
+
+      await octokit.request('DELETE /repos/{owner}/{repo}/contents/{path}', {
+        owner,
+        repo,
+        path,
+        message,
+        sha,
+      });
+
+      console.log(`[GitHub API] Successfully deleted: ${path}`);
+    } catch (error) {
+      console.error('Failed to delete file:', {
         path,
         error: error instanceof Error ? error.message : String(error),
         response: (error as any)?.response?.data,

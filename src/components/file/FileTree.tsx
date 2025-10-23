@@ -13,9 +13,12 @@ interface FileTreeProps {
   files: StoredFile[];
   currentFilePath: string | null;
   onFileSelect: (file: StoredFile) => void;
+  onCreateFile?: () => void;
+  onDeleteFile?: (file: StoredFile) => void;
+  onRenameFile?: (file: StoredFile) => void;
 }
 
-export const FileTree = ({ files, currentFilePath, onFileSelect }: FileTreeProps) => {
+export const FileTree = ({ files, currentFilePath, onFileSelect, onCreateFile, onDeleteFile, onRenameFile }: FileTreeProps) => {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set(['/']));
 
   // Build tree structure from flat file list
@@ -113,22 +116,48 @@ export const FileTree = ({ files, currentFilePath, onFileSelect }: FileTreeProps
 
     // File node
     return (
-      <button
+      <div
         key={node.path}
-        onClick={() => node.file && onFileSelect(node.file)}
-        className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-100 transition ${
-          isCurrentFile ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+        className={`group flex items-center gap-2 hover:bg-gray-100 transition ${
+          isCurrentFile ? 'bg-blue-50' : ''
         }`}
-        style={{ paddingLeft: `${level * 1 + 2}rem` }}
       >
-        <span className="text-gray-400">📄</span>
-        <span className={isCurrentFile ? 'font-medium' : ''}>
-          {node.name}
-        </span>
-        {node.file?.isDirty && (
-          <span className="ml-auto text-orange-500 text-xs">●</span>
-        )}
-      </button>
+        <button
+          onClick={() => node.file && onFileSelect(node.file)}
+          className={`flex-1 flex items-center gap-2 px-3 py-2 text-sm ${
+            isCurrentFile ? 'text-blue-700' : 'text-gray-700'
+          }`}
+          style={{ paddingLeft: `${level * 1 + 2}rem` }}
+        >
+          <span className="text-gray-400">📄</span>
+          <span className={isCurrentFile ? 'font-medium' : ''}>
+            {node.name}
+          </span>
+          {node.file?.isDirty && (
+            <span className="ml-auto text-orange-500 text-xs">●</span>
+          )}
+        </button>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 mr-2">
+          {onRenameFile && node.file && (
+            <button
+              onClick={() => onRenameFile(node.file!)}
+              className="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded transition text-xs"
+              title="名前変更"
+            >
+              ✏️
+            </button>
+          )}
+          {onDeleteFile && node.file && (
+            <button
+              onClick={() => onDeleteFile(node.file!)}
+              className="px-2 py-1 text-red-600 hover:bg-red-50 rounded transition text-xs"
+              title="削除"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
+      </div>
     );
   };
 
@@ -151,6 +180,17 @@ export const FileTree = ({ files, currentFilePath, onFileSelect }: FileTreeProps
 
   return (
     <div className="h-full overflow-y-auto bg-white border-r border-gray-200">
+      {onCreateFile && (
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-2">
+          <button
+            onClick={onCreateFile}
+            className="w-full px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium flex items-center justify-center gap-2"
+          >
+            <span>+</span>
+            <span>新規ファイル</span>
+          </button>
+        </div>
+      )}
       <div className="py-2">
         {fileTree.children?.map((node) => renderNode(node, 0))}
       </div>

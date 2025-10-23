@@ -5,6 +5,8 @@ import { useRepositoryStore } from '../stores/repositoryStore';
 import { FileTree } from '../components/file/FileTree';
 import { MarkdownEditor } from '../components/editor/MarkdownEditor';
 import { PushPanel } from '../components/sync/PushPanel';
+import { CreateFileModal } from '../components/file/CreateFileModal';
+import { RenameFileModal } from '../components/file/RenameFileModal';
 import { db, type StoredFile } from '../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 
@@ -18,6 +20,9 @@ export const EditorPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showPushPanel, setShowPushPanel] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
+  const [showCreateFileModal, setShowCreateFileModal] = useState(false);
+  const [showRenameFileModal, setShowRenameFileModal] = useState(false);
+  const [fileToRename, setFileToRename] = useState<StoredFile | null>(null);
 
   // Load files from IndexedDB
   const files = useLiveQuery(
@@ -98,6 +103,95 @@ export const EditorPage = () => {
 
     return () => clearTimeout(timer);
   }, [currentFile, editorContent, handleSave]);
+
+  const handleCreateFile = useCallback(async (filePath: string) => {
+    if (!repoId) return;
+
+    try {
+      // Create new file in IndexedDB
+      const newFile: Omit<StoredFile, 'id'> = {
+        repoId,
+        path: filePath,
+        content: '',
+        lastModified: new Date().toISOString(),
+        isDirty: true, // Mark as dirty since it's new and not on GitHub yet
+        githubSha: '', // Empty SHA for new files
+        size: 0,
+      };
+
+      const fileId = await db.files.add(newFile as StoredFile);
+
+      // Select the newly created file
+      const createdFile = await db.files.get(fileId);
+      if (createdFile) {
+        setCurrentFile(createdFile);
+        setEditorContent('');
+      }
+
+      console.log(`[Editor] Created new file: ${filePath}`);
+    } catch (error) {
+      console.error('Failed to create file:', error);
+      alert('ファイルの作成に失敗しました');
+    }
+  }, [repoId]);
+
+  const handleDeleteFile = useCallback(async (file: StoredFile) => {
+    if (!confirm(`ファイル「${file.path}」を削除しますか？\n\nこの操作は元に戻せません。プッシュすると、GitHubからも削除されます。`)) {
+      return;
+    }
+
+    try {
+      // Delete from IndexedDB
+      await db.files.delete(file.id);
+
+      // If this was the current file, clear the editor
+      if (currentFile?.id === file.id) {
+        setCurrentFile(null);
+        setEditorContent('');
+      }
+
+      console.log(`[Editor] Deleted file: ${file.path}`);
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+      alert('ファイルの削除に失敗しました');
+    }
+  }, [currentFile]);
+
+  const handleRenameFile = useCallback(async (newPath: string) => {
+    if (!fileToRename || !repoId) return;
+
+    try {
+      // Create new file with new path
+      const renamedFile: Omit<StoredFile, 'id'> = {
+        repoId,
+        path: newPath,
+        content: fileToRename.content,
+        lastModified: new Date().toISOString(),
+        isDirty: true, // Mark as dirty since it needs to be pushed
+        githubSha: '', // Empty SHA for new file
+        size: fileToRename.size,
+      };
+
+      const newFileId = await db.files.add(renamedFile as StoredFile);
+
+      // Delete old file
+      await db.files.delete(fileToRename.id);
+
+      // If this was the current file, switch to the renamed file
+      if (currentFile?.id === fileToRename.id) {
+        const createdFile = await db.files.get(newFileId);
+        if (createdFile) {
+          setCurrentFile(createdFile);
+        }
+      }
+
+      console.log(`[Editor] Renamed file: ${fileToRename.path} -> ${newPath}`);
+      setFileToRename(null);
+    } catch (error) {
+      console.error('Failed to rename file:', error);
+      alert('ファイルの名前変更に失敗しました');
+    }
+  }, [fileToRename, repoId, currentFile]);
 
   if (!repository) {
     return (
@@ -197,6 +291,12 @@ export const EditorPage = () => {
             files={files || []}
             currentFilePath={currentFile?.path || null}
             onFileSelect={handleFileSelect}
+            onCreateFile={() => setShowCreateFileModal(true)}
+            onDeleteFile={handleDeleteFile}
+            onRenameFile={(file) => {
+              setFileToRename(file);
+              setShowRenameFileModal(true);
+            }}
           />
         </div>
 
@@ -229,6 +329,16 @@ export const EditorPage = () => {
                   currentFilePath={currentFile?.path || null}
                   onFileSelect={(file) => {
                     handleFileSelect(file);
+                    setShowMobileDrawer(false);
+                  }}
+                  onCreateFile={() => {
+                    setShowCreateFileModal(true);
+                    setShowMobileDrawer(false);
+                  }}
+                  onDeleteFile={handleDeleteFile}
+                  onRenameFile={(file) => {
+                    setFileToRename(file);
+                    setShowRenameFileModal(true);
                     setShowMobileDrawer(false);
                   }}
                 />
@@ -273,6 +383,24 @@ export const EditorPage = () => {
           }}
         />
       )}
+
+      {/* Create File Modal */}
+      <CreateFileModal
+        isOpen={showCreateFileModal}
+        onClose={() => setShowCreateFileModal(false)}
+        onCreateFile={handleCreateFile}
+      />
+
+      {/* Rename File Modal */}
+      <RenameFileModal
+        isOpen={showRenameFileModal}
+        currentPath={fileToRename?.path || ''}
+        onClose={() => {
+          setShowRenameFileModal(false);
+          setFileToRename(null);
+        }}
+        onRenameFile={handleRenameFile}
+      />
     </div>
   );
 };
