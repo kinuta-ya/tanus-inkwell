@@ -116,17 +116,44 @@ jobs:
             exit 1
           }
 
-          echo "🚀 EC2への転送を開始: $EC2_USER@$EC2_HOST:$DEPLOY_PATH"
-          scp -v -i private_key.pem -o StrictHostKeyChecking=no -r dist/* $EC2_USER@$EC2_HOST:$DEPLOY_PATH 2>&1 || {
-            echo "❌ SCPでの転送が失敗しました"
+          echo "🔍 デプロイ先ディレクトリの確認..."
+          ssh -i private_key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
+            if [ ! -d '$DEPLOY_PATH' ]; then
+              echo '📁 デプロイ先ディレクトリが存在しないため作成します: $DEPLOY_PATH'
+              mkdir -p '$DEPLOY_PATH'
+            fi
+            echo '✅ デプロイ先ディレクトリ確認完了'
+          " || {
+            echo "❌ SSH接続またはディレクトリ作成に失敗しました"
+            exit 1
+          }
+
+          echo "🚀 rsyncでEC2への転送を開始: $EC2_USER@$EC2_HOST:$DEPLOY_PATH"
+          echo "   - 増分転送（変更されたファイルのみ）"
+          echo "   - 古いファイルは自動削除（--delete）"
+
+          rsync -avz --delete \
+            -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" \
+            dist/ \
+            $EC2_USER@$EC2_HOST:$DEPLOY_PATH/ 2>&1 || {
+            echo "❌ rsyncでの転送が失敗しました"
             echo "考えられる原因:"
             echo "  - EC2のセキュリティグループでSSH（ポート22）が許可されていない"
-            echo "  - DEPLOY_PATHが存在しない、または権限がない"
+            echo "  - DEPLOY_PATHへの書き込み権限がない"
             echo "  - SSH秘密鍵のフォーマットが正しくない"
             exit 1
           }
 
           echo "✅ デプロイ完了！"
+
+          echo "📊 デプロイ後のファイル一覧:"
+          ssh -i private_key.pem -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
+            echo 'デプロイ先: $DEPLOY_PATH'
+            ls -lh $DEPLOY_PATH/
+            echo ''
+            echo 'ディスク使用量:'
+            du -sh $DEPLOY_PATH/
+          "
 
           # 秘密鍵を削除
           rm -f private_key.pem
@@ -135,3 +162,8 @@ jobs:
         run: |
           echo "🎉 デプロイが正常に完了しました！"
           echo "🌍 アプリケーションURL: http://${{ secrets.EC2_HOST }}"
+          echo ""
+          echo "📝 デプロイ詳細:"
+          echo "  - ブランチ: ${{ github.ref_name }}"
+          echo "  - コミット: ${{ github.sha }}"
+          echo "  - デプロイ時刻: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
