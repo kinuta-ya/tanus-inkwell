@@ -27,6 +27,18 @@ export const RepositoriesPage = () => {
   const handleSyncRepository = async (repo: Repository) => {
     if (!githubToken) return;
 
+    // 再同期の場合は警告を表示
+    if (repo.lastSync) {
+      const confirmed = window.confirm(
+        `「${repo.name}」のすべてのファイルを再取得します。\n\n` +
+        `⚠️ 警告：編集中の変更が保存されていない場合、GitHubの内容で上書きされます。\n\n` +
+        `続行しますか？`
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setSuccessMessage(null);
     setSyncingRepoId(repo.id);
     try {

@@ -1,5 +1,6 @@
 import { createOctokitClient } from '../../utils/octokit';
 import type { GitHubUser } from '../../types';
+import { encryptString, decryptString, isCryptoAvailable } from '../../utils/crypto';
 
 const TOKEN_KEY = 'github_token';
 
@@ -42,17 +43,75 @@ export class GitHubAuthService {
    * Get stored token from LocalStorage
    */
   getStoredToken(): string | null {
-    const token = localStorage.getItem(TOKEN_KEY);
-    console.log('[Auth] getStoredToken:', token ? 'Found' : 'Not found');
-    return token;
+    const encryptedToken = localStorage.getItem(TOKEN_KEY);
+    if (!encryptedToken) {
+      console.log('[Auth] getStoredToken: Not found');
+      return null;
+    }
+
+    // Check if crypto is available
+    if (!isCryptoAvailable()) {
+      console.warn('[Auth] Web Crypto API not available, storing token in plaintext');
+      return encryptedToken;
+    }
+
+    // Note: We can't use async in getStoredToken, so we'll handle this differently
+    // For now, we'll check if the token is encrypted (base64) or plaintext
+    try {
+      // If it looks like base64, assume it's encrypted
+      if (/^[A-Za-z0-9+/]+=*$/.test(encryptedToken)) {
+        console.log('[Auth] getStoredToken: Found (encrypted)');
+        return encryptedToken; // Return encrypted, will be decrypted when needed
+      } else {
+        console.log('[Auth] getStoredToken: Found (plaintext - legacy)');
+        return encryptedToken;
+      }
+    } catch (error) {
+      console.error('[Auth] Error reading token:', error);
+      return null;
+    }
   }
 
   /**
-   * Save token to LocalStorage
+   * Get and decrypt stored token
    */
-  private saveToken(token: string): void {
-    localStorage.setItem(TOKEN_KEY, token);
-    console.log('[Auth] Token saved to LocalStorage');
+  async getDecryptedToken(): Promise<string | null> {
+    const encryptedToken = localStorage.getItem(TOKEN_KEY);
+    if (!encryptedToken) {
+      return null;
+    }
+
+    if (!isCryptoAvailable()) {
+      return encryptedToken; // Return as-is if crypto not available
+    }
+
+    try {
+      return await decryptString(encryptedToken);
+    } catch (error) {
+      console.error('[Auth] Failed to decrypt token, it might be plaintext:', error);
+      // Assume it's a legacy plaintext token
+      return encryptedToken;
+    }
+  }
+
+  /**
+   * Save token to LocalStorage (encrypted)
+   */
+  private async saveToken(token: string): Promise<void> {
+    if (!isCryptoAvailable()) {
+      console.warn('[Auth] Web Crypto API not available, storing token in plaintext');
+      localStorage.setItem(TOKEN_KEY, token);
+      return;
+    }
+
+    try {
+      const encrypted = await encryptString(token);
+      localStorage.setItem(TOKEN_KEY, encrypted);
+      console.log('[Auth] Token encrypted and saved to LocalStorage');
+    } catch (error) {
+      console.error('[Auth] Encryption failed, falling back to plaintext:', error);
+      localStorage.setItem(TOKEN_KEY, token);
+    }
   }
 
   /**
@@ -60,7 +119,7 @@ export class GitHubAuthService {
    */
   async validateStoredToken(): Promise<GitHubUser | null> {
     console.log('[Auth] Validating stored token...');
-    const token = this.getStoredToken();
+    const token = await this.getDecryptedToken();
     if (!token) {
       console.log('[Auth] No token found');
       return null;

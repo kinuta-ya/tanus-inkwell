@@ -5,6 +5,8 @@ import { useRepositoryStore } from '../stores/repositoryStore';
 import { FileTree } from '../components/file/FileTree';
 import { MarkdownEditor } from '../components/editor/MarkdownEditor';
 import { PushPanel } from '../components/sync/PushPanel';
+import { PullPanel } from '../components/sync/PullPanel';
+import { SyncMenu } from '../components/sync/SyncMenu';
 import { CreateFileModal } from '../components/file/CreateFileModal';
 import { RenameFileModal } from '../components/file/RenameFileModal';
 import { db, type StoredFile } from '../db/schema';
@@ -19,6 +21,7 @@ export const EditorPage = () => {
   const [editorContent, setEditorContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showPushPanel, setShowPushPanel] = useState(false);
+  const [showPullPanel, setShowPullPanel] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [showCreateFileModal, setShowCreateFileModal] = useState(false);
   const [showRenameFileModal, setShowRenameFileModal] = useState(false);
@@ -249,19 +252,12 @@ export const EditorPage = () => {
               <span className="hidden md:inline text-sm text-orange-600">未保存</span>
             )}
 
-            {/* Push Button */}
-            {dirtyFiles.length > 0 && (
-              <button
-                onClick={() => setShowPushPanel(true)}
-                className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-2 text-xs md:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
-              >
-                <span className="hidden sm:inline">変更をプッシュ</span>
-                <span className="sm:hidden">Push</span>
-                <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-white text-blue-600 rounded-full">
-                  {dirtyFiles.length}
-                </span>
-              </button>
-            )}
+            {/* Sync Menu */}
+            <SyncMenu
+              dirtyFilesCount={dirtyFiles.length}
+              onPull={() => setShowPullPanel(true)}
+              onPush={() => setShowPushPanel(true)}
+            />
 
             {/* User Menu */}
             <div className="flex items-center gap-2">
@@ -380,6 +376,29 @@ export const EditorPage = () => {
             setShowPushPanel(false);
             // Files will be automatically refreshed by useLiveQuery
             // No need to reload the page
+          }}
+        />
+      )}
+
+      {/* Pull Panel */}
+      {showPullPanel && repository && (
+        <PullPanel
+          repository={repository}
+          dirtyFiles={dirtyFiles}
+          allFiles={files || []}
+          onClose={() => setShowPullPanel(false)}
+          onPullComplete={() => {
+            setShowPullPanel(false);
+            // Files will be automatically refreshed by useLiveQuery
+            // Reset current file if it was updated
+            if (currentFile) {
+              db.files.get(currentFile.id).then((updated) => {
+                if (updated) {
+                  setCurrentFile(updated);
+                  setEditorContent(updated.content);
+                }
+              });
+            }
           }}
         />
       )}

@@ -59,7 +59,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const user = await authService.validateStoredToken();
       if (user) {
-        const token = authService.getStoredToken();
+        const token = await authService.getDecryptedToken();
         console.log('[AuthStore] User authenticated:', user.login);
         set({
           isAuthenticated: true,
