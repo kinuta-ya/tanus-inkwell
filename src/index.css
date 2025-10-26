@@ -33,3 +33,46 @@ body {
 .cm-editor .cm-line {
   font-family: inherit !important;
 }
+
+/* Ruby (Furigana) styling */
+ruby {
+  ruby-position: over;
+}
+
+ruby rt {
+  font-size: 0.5em;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Ruby in vertical writing mode */
+[style*="writing-mode: vertical-rl"] ruby {
+  ruby-position: right;
+}
+
+/* Bouten (Emphasis dots) styling - Horizontal */
+.bouten {
+  font-style: normal;
+  text-emphasis-style: filled sesame;
+  text-emphasis-position: over left;
+  -webkit-text-emphasis-style: filled sesame;
+  -webkit-text-emphasis-position: over left;
+}
+
+/* Bouten in vertical writing mode */
+[style*="writing-mode: vertical-rl"] .bouten {
+  text-emphasis-position: right over;
+  -webkit-text-emphasis-position: right over;
+}
+
+/* Fallback for browsers that don't support text-emphasis */
+@supports not (text-emphasis-style: filled sesame) {
+  .bouten::before {
+    content: '・';
+    position: absolute;
+    font-size: 0.5em;
+    top: -0.8em;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}

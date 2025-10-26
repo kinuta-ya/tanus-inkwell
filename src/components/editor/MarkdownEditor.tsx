@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { marked } from 'marked';
+import type { EditorView } from '@codemirror/view';
 import { useEditorSettingsStore, FONT_CONFIG, BACKGROUND_CONFIG } from '../../stores/editorSettingsStore';
 import { SettingsPanel } from './SettingsPanel';
+import { MobileToolbar } from './MobileToolbar';
+import { FloatingToolbar } from './FloatingToolbar';
+import { renderRubyAndBouten } from '../../utils/markdownRenderer';
 
 interface MarkdownEditorProps {
   value: string;
@@ -15,6 +19,9 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
   const [showPreview, setShowPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [editorView, setEditorView] = useState<EditorView | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
+  const editorRef = useRef<any>(null);
 
   const {
     fontFamily,
@@ -28,10 +35,38 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
 
   useEffect(() => {
     if (showPreview) {
-      const html = marked.parse(value || '') as string;
+      let html = marked.parse(value || '') as string;
+      // Apply ruby and bouten rendering
+      html = renderRubyAndBouten(html);
       setPreviewHtml(html);
     }
   }, [value, showPreview]);
+
+  // Track editor selection for floating toolbar
+  useEffect(() => {
+    if (!editorView || showPreview) {
+      setHasSelection(false);
+      return;
+    }
+
+    const updateSelection = () => {
+      const selection = editorView.state.selection.main;
+      setHasSelection(selection.from !== selection.to);
+    };
+
+    // Initial check
+    updateSelection();
+
+    // Listen to selection changes
+    const handleUpdate = () => updateSelection();
+    editorView.dom.addEventListener('mouseup', handleUpdate);
+    editorView.dom.addEventListener('keyup', handleUpdate);
+
+    return () => {
+      editorView.dom.removeEventListener('mouseup', handleUpdate);
+      editorView.dom.removeEventListener('keyup', handleUpdate);
+    };
+  }, [editorView, showPreview]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -143,27 +178,33 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
 
       {/* Editor/Preview */}
       <div
-        className="flex-1 overflow-hidden"
+        className="flex-1 overflow-hidden relative"
         style={{ backgroundColor: BACKGROUND_CONFIG[backgroundColor].color }}
       >
         {!showPreview ? (
-          <CodeMirror
-            value={value}
-            height="100%"
-            extensions={[markdown()]}
-            onChange={onChange}
-            className="h-full"
-            style={{
-              fontSize: `${fontSize}px`,
-              fontFamily: FONT_CONFIG[fontFamily].family,
-            }}
-            basicSetup={{
-              lineNumbers: true,
-              highlightActiveLineGutter: true,
-              highlightActiveLine: true,
-              foldGutter: true,
-            }}
-          />
+          <>
+            <CodeMirror
+              ref={editorRef}
+              value={value}
+              height="100%"
+              extensions={[markdown()]}
+              onChange={onChange}
+              onCreateEditor={(view) => setEditorView(view)}
+              className="h-full"
+              style={{
+                fontSize: `${fontSize}px`,
+                fontFamily: FONT_CONFIG[fontFamily].family,
+              }}
+              basicSetup={{
+                lineNumbers: true,
+                highlightActiveLineGutter: true,
+                highlightActiveLine: true,
+                foldGutter: true,
+              }}
+            />
+            {/* Floating Toolbar */}
+            <FloatingToolbar editorView={editorView} hasSelection={hasSelection} />
+          </>
         ) : (
           <div
             className={`h-full ${writingMode === 'vertical' ? 'overflow-x-auto' : 'overflow-y-auto'}`}
@@ -184,6 +225,9 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
           </div>
         )}
       </div>
+
+      {/* Mobile Toolbar - only show in edit mode */}
+      {!showPreview && <MobileToolbar editorView={editorView} />}
 
       {/* Settings Panel */}
       <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
