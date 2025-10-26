@@ -127,7 +127,20 @@ export class GitHubAuthService {
 
     try {
       console.log('[Auth] Attempting to validate token...');
-      const user = await this.login(token);
+      // Don't use login() here as it will re-save the token
+      // Just validate the token and return user info
+      const octokit = createOctokitClient(token);
+      const { data } = await octokit.request('GET /user');
+
+      const user = {
+        login: data.login,
+        id: data.id,
+        avatar_url: data.avatar_url,
+        name: data.name,
+        email: data.email,
+        bio: data.bio,
+      };
+
       console.log('[Auth] Token is valid, user:', user.login);
       return user;
     } catch (error) {
