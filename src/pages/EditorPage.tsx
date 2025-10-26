@@ -2,8 +2,10 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useRepositoryStore } from '../stores/repositoryStore';
+import { useEditorSettingsStore } from '../stores/editorSettingsStore';
 import { FileTree } from '../components/file/FileTree';
 import { MarkdownEditor } from '../components/editor/MarkdownEditor';
+import { FontLoader } from '../components/editor/FontLoader';
 import { PushPanel } from '../components/sync/PushPanel';
 import { PullPanel } from '../components/sync/PullPanel';
 import { SyncMenu } from '../components/sync/SyncMenu';
@@ -17,6 +19,7 @@ export const EditorPage = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { currentRepository, repositories } = useRepositoryStore();
+  const { focusMode, toggleFocusMode } = useEditorSettingsStore();
   const [currentFile, setCurrentFile] = useState<StoredFile | null>(null);
   const [editorContent, setEditorContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -207,10 +210,27 @@ export const EditorPage = () => {
     );
   }
 
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F11 or Ctrl+Shift+F to toggle focus mode
+      if (e.key === 'F11' || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'f')) {
+        e.preventDefault();
+        toggleFocusMode();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleFocusMode]);
+
   return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3">
+    <>
+      <FontLoader />
+      <div className="h-screen flex flex-col">
+        {/* Header */}
+        {!focusMode && (
+          <header className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {/* Mobile Menu Button */}
@@ -252,6 +272,17 @@ export const EditorPage = () => {
               <span className="hidden md:inline text-sm text-orange-600">未保存</span>
             )}
 
+            {/* Focus Mode Toggle */}
+            <button
+              onClick={toggleFocusMode}
+              className="text-gray-600 hover:text-gray-900 p-2"
+              title="フォーカスモード (F11)"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            </button>
+
             {/* Sync Menu */}
             <SyncMenu
               dirtyFilesCount={dirtyFiles.length}
@@ -278,11 +309,13 @@ export const EditorPage = () => {
           </div>
         </div>
       </header>
+        )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* File Tree Sidebar - Desktop */}
-        <div className="hidden md:block w-64 flex-shrink-0">
+        {!focusMode && (
+          <div className="hidden md:block w-64 flex-shrink-0">
           <FileTree
             files={files || []}
             currentFilePath={currentFile?.path || null}
@@ -295,9 +328,10 @@ export const EditorPage = () => {
             }}
           />
         </div>
+        )}
 
         {/* File Tree Drawer - Mobile */}
-        {showMobileDrawer && (
+        {showMobileDrawer && !focusMode && (
           <div className="md:hidden fixed inset-0 z-40">
             {/* Overlay */}
             <div
@@ -421,5 +455,6 @@ export const EditorPage = () => {
         onRenameFile={handleRenameFile}
       />
     </div>
+    </>
   );
 };

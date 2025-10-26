@@ -11,7 +11,10 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Add sync functionality and PWA support\n\n- Add sync menu with pull/push functionality for GitHub repository synchronization\n- Implement encrypted token storage using Web Crypto API\n- Add PWA manifest and service worker configuration\n- Enhance GitHub auth service with repository and file operations\n- Update editor and repository pages with sync capabilities\n- Add security documentation\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Add sync functionality and PWA support\n\n- Add sync menu with pull/push functionality for GitHub repository synchronization\n- Implement encrypted token storage using Web Crypto API\n- Add PWA manifest and service worker configuration\n- Enhance GitHub auth service with repository and file operations\n- Update editor and repository pages with sync capabilities\n- Add security documentation\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(git log:*)",
+      "Bash(git remote add:*)"
     ],
     "deny": [],
     "ask": []

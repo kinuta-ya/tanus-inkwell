@@ -5,3 +5,31 @@ body {
   background-color: white;
   color: rgb(17 24 39);
 }
+
+/* Vertical writing mode improvements */
+[style*="writing-mode: vertical-rl"] {
+  text-orientation: mixed;
+}
+
+/* Better handling of punctuation in vertical text */
+[style*="writing-mode: vertical-rl"] h1,
+[style*="writing-mode: vertical-rl"] h2,
+[style*="writing-mode: vertical-rl"] h3,
+[style*="writing-mode: vertical-rl"] h4,
+[style*="writing-mode: vertical-rl"] h5,
+[style*="writing-mode: vertical-rl"] h6 {
+  text-combine-upright: none;
+}
+
+/* Improve CodeMirror editor font application */
+.cm-editor {
+  font-family: inherit !important;
+}
+
+.cm-editor .cm-content {
+  font-family: inherit !important;
+}
+
+.cm-editor .cm-line {
+  font-family: inherit !important;
+}
