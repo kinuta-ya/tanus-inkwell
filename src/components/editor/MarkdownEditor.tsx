@@ -185,8 +185,8 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
           )}
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
-          <div className="hidden xl:block text-xs text-gray-500 whitespace-nowrap">
+        <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
+          <div className="hidden xl:block text-xs text-gray-500 whitespace-nowrap max-w-xs overflow-hidden text-ellipsis">
             {charCount.toLocaleString()} 文字
             {charCountWithoutSpaces !== charCount && (
               <span className="ml-2">
