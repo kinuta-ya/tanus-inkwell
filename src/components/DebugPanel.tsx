@@ -50,6 +50,9 @@ console.error = (...args: any[]) => {
 };
 
 export const DebugPanel = () => {
+  // Hidden for production - uncomment to enable debug panel
+  return null;
+
   const [isOpen, setIsOpen] = useState(false);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
 

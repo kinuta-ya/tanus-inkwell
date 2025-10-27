@@ -22,6 +22,7 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
   const editorRef = useRef<any>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const {
     fontFamily,
@@ -41,6 +42,35 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
       setPreviewHtml(html);
     }
   }, [value, showPreview]);
+
+  // Reset scroll position when switching to preview or changing writing mode
+  useEffect(() => {
+    if (showPreview && previewRef.current) {
+      // For vertical writing, scroll to the rightmost position (start of text)
+      if (writingMode === 'vertical') {
+        // Use requestAnimationFrame and setTimeout to ensure the content is fully rendered
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (previewRef.current) {
+              // Scroll to the far right (start of vertical text)
+              const maxScroll = previewRef.current.scrollWidth - previewRef.current.clientWidth;
+              console.log('[Preview] Vertical scroll - scrollWidth:', previewRef.current.scrollWidth, 'clientWidth:', previewRef.current.clientWidth, 'maxScroll:', maxScroll);
+              previewRef.current.scrollLeft = maxScroll;
+            }
+          }, 150);
+        });
+      } else {
+        // For horizontal writing, scroll to top
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (previewRef.current) {
+              previewRef.current.scrollTop = 0;
+            }
+          }, 50);
+        });
+      }
+    }
+  }, [showPreview, writingMode, previewHtml]);
 
   // Track editor selection for floating toolbar
   useEffect(() => {
@@ -87,63 +117,76 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
   const manuscriptPages = Math.ceil(charCountWithoutSpaces / 400); // 400 chars per page
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col w-full overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-2 md:px-4 py-2 bg-gray-100 border-b border-gray-200 gap-2 w-full min-w-0">
+        <div className="flex items-center gap-1 md:gap-2 flex-shrink min-w-0">
           <button
             onClick={() => setShowPreview(false)}
-            className={`px-3 py-1 text-sm font-medium rounded transition ${
+            className={`p-1.5 sm:p-2 rounded transition flex-shrink-0 ${
               !showPreview
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
+            title="編集"
+            aria-label="編集"
           >
-            編集
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
           </button>
           <button
             onClick={() => setShowPreview(true)}
-            className={`px-3 py-1 text-sm font-medium rounded transition ${
+            className={`p-1.5 sm:p-2 rounded transition flex-shrink-0 ${
               showPreview
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
+            title="プレビュー"
+            aria-label="プレビュー"
           >
-            プレビュー
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
           </button>
 
           {/* Writing Mode Toggle (only in preview) */}
           {showPreview && (
             <>
-              <div className="w-px h-4 bg-gray-300 mx-1" />
+              <div className="hidden sm:block w-px h-4 bg-gray-300 mx-1" />
               <button
                 onClick={() => setWritingMode('horizontal')}
-                className={`px-3 py-1 text-sm font-medium rounded transition ${
+                className={`p-1.5 sm:p-2 md:px-3 md:py-1 text-sm font-medium rounded transition flex-shrink-0 ${
                   writingMode === 'horizontal'
                     ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
                 title="横書き"
+                aria-label="横書き"
               >
-                横
+                <span className="hidden md:inline">横</span>
+                <span className="md:hidden text-xs">━</span>
               </button>
               <button
                 onClick={() => setWritingMode('vertical')}
-                className={`px-3 py-1 text-sm font-medium rounded transition ${
+                className={`p-1.5 sm:p-2 md:px-3 md:py-1 text-sm font-medium rounded transition flex-shrink-0 ${
                   writingMode === 'vertical'
                     ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
                 title="縦書き"
+                aria-label="縦書き"
               >
-                縦
+                <span className="hidden md:inline">縦</span>
+                <span className="md:hidden text-xs">｜</span>
               </button>
             </>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-xs text-gray-500">
+        <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
+          <div className="hidden xl:block text-xs text-gray-500 whitespace-nowrap">
             {charCount.toLocaleString()} 文字
             {charCountWithoutSpaces !== charCount && (
               <span className="ml-2">
@@ -160,10 +203,11 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
           {/* Settings Button */}
           <button
             onClick={() => setShowSettings(true)}
-            className="text-gray-600 hover:text-gray-900 transition p-1"
+            className="text-gray-600 hover:text-gray-900 transition p-1.5 sm:p-2 flex-shrink-0"
             title="設定"
+            aria-label="設定"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -207,21 +251,44 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
           </>
         ) : (
           <div
-            className={`h-full ${writingMode === 'vertical' ? 'overflow-x-auto' : 'overflow-y-auto'}`}
+            ref={previewRef}
+            className={`preview-container ${
+              writingMode === 'vertical'
+                ? 'h-full overflow-x-auto overflow-y-hidden'
+                : 'h-full overflow-y-auto overflow-x-hidden'
+            }`}
           >
-            <div
-              className="prose prose-slate p-8 mx-auto"
-              style={{
-                fontFamily: FONT_CONFIG[fontFamily].family,
-                fontSize: `${fontSize}px`,
-                lineHeight: lineHeight,
-                writingMode: writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
-                maxWidth: writingMode === 'horizontal' ? `${maxWidth}ch` : 'none',
-                height: writingMode === 'vertical' ? 'calc(100vh - 200px)' : 'auto',
-                minWidth: writingMode === 'vertical' ? 'max-content' : 'auto',
-              }}
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
+            {writingMode === 'vertical' ? (
+              <div
+                className="prose prose-slate"
+                style={{
+                  fontFamily: FONT_CONFIG[fontFamily].family,
+                  fontSize: `${fontSize}px`,
+                  lineHeight: lineHeight,
+                  writingMode: 'vertical-rl',
+                  padding: '2rem',
+                  height: '100%',
+                  width: 'max-content',
+                  boxSizing: 'border-box',
+                }}
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+            ) : (
+              <div
+                className="prose prose-slate"
+                style={{
+                  fontFamily: FONT_CONFIG[fontFamily].family,
+                  fontSize: `${fontSize}px`,
+                  lineHeight: lineHeight,
+                  writingMode: 'horizontal-tb',
+                  padding: '2rem',
+                  maxWidth: `${maxWidth}ch`,
+                  margin: '0 auto',
+                  minHeight: '100%',
+                }}
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+            )}
           </div>
         )}
       </div>
