@@ -16,10 +16,25 @@ interface FileTreeProps {
   onCreateFile?: () => void;
   onDeleteFile?: (file: StoredFile) => void;
   onRenameFile?: (file: StoredFile) => void;
+  // When set, the expanded/collapsed state of folders is persisted under this
+  // key (e.g. the repository id) and restored on the next render.
+  persistKey?: string;
 }
 
-export const FileTree = ({ files, currentFilePath, onFileSelect, onCreateFile, onDeleteFile, onRenameFile }: FileTreeProps) => {
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set(['/']));
+const EXPANDED_DIRS_STORAGE_PREFIX = 'tanus-inkwell:expandedDirs:';
+
+export const FileTree = ({ files, currentFilePath, onFileSelect, onCreateFile, onDeleteFile, onRenameFile, persistKey }: FileTreeProps) => {
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => {
+    if (persistKey) {
+      try {
+        const raw = localStorage.getItem(EXPANDED_DIRS_STORAGE_PREFIX + persistKey);
+        if (raw) return new Set(JSON.parse(raw) as string[]);
+      } catch {
+        // Ignore malformed storage and fall back to the default.
+      }
+    }
+    return new Set(['/']);
+  });
 
   // Build tree structure from flat file list
   const fileTree = useMemo(() => {
@@ -83,6 +98,13 @@ export const FileTree = ({ files, currentFilePath, onFileSelect, onCreateFile, o
         next.delete(path);
       } else {
         next.add(path);
+      }
+      if (persistKey) {
+        try {
+          localStorage.setItem(EXPANDED_DIRS_STORAGE_PREFIX + persistKey, JSON.stringify([...next]));
+        } catch {
+          // Ignore storage write failures (e.g. private mode quota).
+        }
       }
       return next;
     });

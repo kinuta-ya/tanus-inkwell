@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useRepositoryStore } from '../stores/repositoryStore';
@@ -11,7 +11,7 @@ import { PullPanel } from '../components/sync/PullPanel';
 import { SyncMenu } from '../components/sync/SyncMenu';
 import { CreateFileModal } from '../components/file/CreateFileModal';
 import { RenameFileModal } from '../components/file/RenameFileModal';
-import { db, type StoredFile } from '../db/schema';
+import { db, getAppSettings, setCurrentFilePath, type StoredFile } from '../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 
 export const EditorPage = () => {
@@ -29,6 +29,9 @@ export const EditorPage = () => {
   const [showCreateFileModal, setShowCreateFileModal] = useState(false);
   const [showRenameFileModal, setShowRenameFileModal] = useState(false);
   const [fileToRename, setFileToRename] = useState<StoredFile | null>(null);
+  // Tracks the repo whose saved file selection we've already restored, so the
+  // restore runs once per repo and never overrides a later user selection.
+  const restoredRepoRef = useRef<string | null>(null);
 
   // Load files from IndexedDB
   const files = useLiveQuery(
@@ -67,7 +70,26 @@ export const EditorPage = () => {
   const handleFileSelect = useCallback((file: StoredFile) => {
     setCurrentFile(file);
     setEditorContent(file.content);
-  }, []);
+    if (repoId) {
+      void setCurrentFilePath(repoId, file.path);
+    }
+  }, [repoId]);
+
+  // Restore the last opened file when entering the editor (once per repo).
+  useEffect(() => {
+    if (!repoId || !files || files.length === 0) return;
+    if (restoredRepoRef.current === repoId) return;
+    restoredRepoRef.current = repoId;
+
+    void getAppSettings().then((settings) => {
+      if (settings?.currentRepoId !== repoId || !settings.currentFilePath) return;
+      const saved = files.find((f) => f.path === settings.currentFilePath);
+      if (saved) {
+        setCurrentFile(saved);
+        setEditorContent(saved.content);
+      }
+    });
+  }, [repoId, files]);
 
   const handleEditorChange = useCallback((value: string) => {
     setEditorContent(value);
@@ -132,6 +154,7 @@ export const EditorPage = () => {
       if (createdFile) {
         setCurrentFile(createdFile);
         setEditorContent('');
+        await setCurrentFilePath(repoId, createdFile.path);
       }
 
       console.log(`[Editor] Created new file: ${filePath}`);
@@ -150,10 +173,13 @@ export const EditorPage = () => {
       // Delete from IndexedDB
       await db.files.delete(file.id);
 
-      // If this was the current file, clear the editor
+      // If this was the current file, clear the editor and saved selection
       if (currentFile?.id === file.id) {
         setCurrentFile(null);
         setEditorContent('');
+        if (repoId) {
+          await setCurrentFilePath(repoId, null);
+        }
       }
 
       console.log(`[Editor] Deleted file: ${file.path}`);
@@ -161,7 +187,7 @@ export const EditorPage = () => {
       console.error('Failed to delete file:', error);
       alert('ファイルの削除に失敗しました');
     }
-  }, [currentFile]);
+  }, [currentFile, repoId]);
 
   const handleRenameFile = useCallback(async (newPath: string) => {
     if (!fileToRename || !repoId) return;
@@ -188,6 +214,7 @@ export const EditorPage = () => {
         const createdFile = await db.files.get(newFileId);
         if (createdFile) {
           setCurrentFile(createdFile);
+          await setCurrentFilePath(repoId, createdFile.path);
         }
       }
 
@@ -340,6 +367,7 @@ export const EditorPage = () => {
               setFileToRename(file);
               setShowRenameFileModal(true);
             }}
+            persistKey={repoId}
           />
         </div>
         )}
@@ -385,6 +413,7 @@ export const EditorPage = () => {
                     setShowRenameFileModal(true);
                     setShowMobileDrawer(false);
                   }}
+                  persistKey={repoId}
                 />
               </div>
             </div>
