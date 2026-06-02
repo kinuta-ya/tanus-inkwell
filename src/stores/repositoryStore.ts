@@ -54,6 +54,9 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
       const [owner, repoName] = repo.fullName.split('/');
       console.log(`[Sync] Starting sync for ${repo.fullName} (repoId: ${repo.id})`);
 
+      // Record the HEAD commit so later pulls can fetch only the diff.
+      const { sha: headSha } = await repositoryService.getLatestCommit(token, owner, repoName);
+
       // Fetch repository tree
       const tree = await repositoryService.getRepositoryTree(token, owner, repoName);
       console.log(`[Sync] Fetched tree with ${tree.length} items`);
@@ -71,6 +74,7 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
       await db.repositories.put({
         ...repo,
         lastSync: new Date().toISOString(),
+        lastSyncCommitSha: headSha,
         fileCount: markdownFiles.length,
       });
       console.log(`[Sync] Saved repository to DB`);

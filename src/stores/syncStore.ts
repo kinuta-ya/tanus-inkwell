@@ -58,6 +58,7 @@ export const useSyncStore = create<SyncStore>((set) => ({
 
     const [owner, repoName] = repo.fullName.split('/');
     let successCount = 0;
+    let lastCommitSha = '';
 
     try {
       for (let i = 0; i < dirtyFiles.length; i++) {
@@ -99,6 +100,9 @@ export const useSyncStore = create<SyncStore>((set) => ({
             lastModified: new Date().toISOString(),
           });
 
+          // The PUT contents response carries the resulting HEAD commit SHA.
+          lastCommitSha = result.sha || lastCommitSha;
+
           successCount++;
           set({ pushProgress: successCount });
 
@@ -107,6 +111,11 @@ export const useSyncStore = create<SyncStore>((set) => ({
           console.error(`[Push] Failed to push ${file.path}:`, error);
           throw new Error(`Failed to push ${file.path}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+      }
+
+      // Advance the synced commit so a later pull diffs from after this push.
+      if (lastCommitSha) {
+        await db.repositories.update(repo.id, { lastSyncCommitSha: lastCommitSha });
       }
 
       console.log(`[Push] Push complete. ${successCount}/${dirtyFiles.length} files pushed`);
@@ -133,83 +142,147 @@ export const useSyncStore = create<SyncStore>((set) => ({
     const conflicts: StoredFile[] = [];
     let updatedCount = 0;
 
+    // Helper: fetch a remote file and upsert it into IndexedDB.
+    const upsertFile = async (path: string, localFile?: StoredFile) => {
+      const fileContent = await repositoryService.getFileContent(token, owner, repoName, path);
+      if (localFile) {
+        await db.files.update(localFile.id, {
+          content: fileContent.content,
+          githubSha: fileContent.sha,
+          size: fileContent.size,
+          isDirty: false,
+          lastModified: new Date().toISOString(),
+        });
+      } else {
+        await db.files.add({
+          id: `${repo.id}-${path}`,
+          repoId: repo.id,
+          path,
+          content: fileContent.content,
+          githubSha: fileContent.sha,
+          size: fileContent.size,
+          isDirty: false,
+          lastModified: new Date().toISOString(),
+        });
+      }
+    };
+
     try {
-      // Get the latest tree from GitHub
-      console.log('[Pull] Fetching repository tree from GitHub...');
-      const tree = await repositoryService.getRepositoryTree(token, owner, repoName);
+      // Resolve the current HEAD commit and the commit we last synced from.
+      const { sha: headSha } = await repositoryService.getLatestCommit(token, owner, repoName);
+      const storedRepo = await db.repositories.get(repo.id);
+      const baseSha = storedRepo?.lastSyncCommitSha;
 
-      // Filter only files (not directories)
-      const remoteFiles = tree.filter((item) => item.type === 'blob');
+      const currentFileMap = new Map(currentFiles.map((f) => [f.path, f]));
 
-      set({ pullTotal: remoteFiles.length });
-      console.log(`[Pull] Found ${remoteFiles.length} files in remote repository`);
+      // Nothing changed remotely since the last sync: skip all content fetches.
+      if (baseSha && baseSha === headSha) {
+        console.log('[Pull] Remote is unchanged since last sync, nothing to pull');
+        await db.repositories.update(repo.id, { lastSync: new Date().toISOString() });
+        set({ isPulling: false, pullProgress: 0, pullTotal: 0 });
+        return { updated: 0, conflicts };
+      }
 
-      // Create a map of current files for quick lookup
-      const currentFileMap = new Map(
-        currentFiles.map((f) => [f.path, f])
-      );
+      if (baseSha) {
+        // Incremental pull: only the files that changed since the last sync.
+        console.log(`[Pull] Comparing ${baseSha.slice(0, 7)}...${headSha.slice(0, 7)}`);
+        const changes = (
+          await repositoryService.compareCommits(token, owner, repoName, baseSha, headSha)
+        ).filter((c) => c.status !== 'unchanged');
 
-      // Process each remote file
-      for (let i = 0; i < remoteFiles.length; i++) {
-        const remoteFile = remoteFiles[i];
-        const localFile = currentFileMap.get(remoteFile.path);
+        set({ pullTotal: changes.length });
+        console.log(`[Pull] ${changes.length} changed file(s) in remote`);
 
-        try {
-          // Check if file needs to be updated
-          if (!localFile || localFile.githubSha !== remoteFile.sha) {
-            // Check for conflicts (local file is dirty and remote has changed)
-            if (localFile?.isDirty && localFile.githubSha !== remoteFile.sha) {
-              console.log(`[Pull] Conflict detected: ${remoteFile.path}`);
-              conflicts.push(localFile);
+        for (let i = 0; i < changes.length; i++) {
+          const change = changes[i];
+          try {
+            if (change.status === 'removed') {
+              const local = currentFileMap.get(change.filename);
+              if (local?.isDirty) {
+                // Locally edited but removed upstream: surface as a conflict.
+                conflicts.push(local);
+              } else if (local) {
+                await db.files.delete(local.id);
+                updatedCount++;
+                console.log(`[Pull] Removed: ${change.filename}`);
+              }
               set({ pullProgress: i + 1 });
               continue;
             }
 
-            // Fetch the file content from GitHub
-            console.log(`[Pull] Updating file: ${remoteFile.path}`);
-            const fileContent = await repositoryService.getFileContent(
-              token,
-              owner,
-              repoName,
-              remoteFile.path
-            );
-
-            // Update or create the file in IndexedDB
-            if (localFile) {
-              await db.files.update(localFile.id, {
-                content: fileContent.content,
-                githubSha: fileContent.sha,
-                size: fileContent.size,
-                isDirty: false,
-                lastModified: new Date().toISOString(),
-              });
-            } else {
-              await db.files.add({
-                id: `${repo.id}-${remoteFile.path}`,
-                repoId: repo.id,
-                path: remoteFile.path,
-                content: fileContent.content,
-                githubSha: fileContent.sha,
-                size: fileContent.size,
-                isDirty: false,
-                lastModified: new Date().toISOString(),
-              });
+            // A rename also removes the previous path.
+            if (change.status === 'renamed' && change.previous_filename) {
+              const prev = currentFileMap.get(change.previous_filename);
+              if (prev?.isDirty) {
+                conflicts.push(prev);
+                set({ pullProgress: i + 1 });
+                continue;
+              }
+              if (prev) {
+                await db.files.delete(prev.id);
+              }
             }
 
-            updatedCount++;
-            console.log(`[Pull] Updated: ${remoteFile.path}`);
-          }
+            const local = currentFileMap.get(change.filename);
+            if (local?.isDirty && local.githubSha !== change.sha) {
+              console.log(`[Pull] Conflict detected: ${change.filename}`);
+              conflicts.push(local);
+              set({ pullProgress: i + 1 });
+              continue;
+            }
 
-          set({ pullProgress: i + 1 });
-        } catch (error) {
-          console.error(`[Pull] Failed to pull ${remoteFile.path}:`, error);
-          // Continue with other files even if one fails
+            if (!local || local.githubSha !== change.sha) {
+              console.log(`[Pull] Updating file: ${change.filename}`);
+              await upsertFile(change.filename, local);
+              updatedCount++;
+            }
+
+            set({ pullProgress: i + 1 });
+          } catch (error) {
+            console.error(`[Pull] Failed to pull ${change.filename}:`, error);
+            // Continue with other files even if one fails
+          }
+        }
+      } else {
+        // First pull (no recorded commit): fall back to walking the full tree.
+        console.log('[Pull] No previous sync commit, fetching full repository tree...');
+        const tree = await repositoryService.getRepositoryTree(token, owner, repoName);
+        const remoteFiles = tree.filter((item) => item.type === 'blob');
+
+        set({ pullTotal: remoteFiles.length });
+        console.log(`[Pull] Found ${remoteFiles.length} files in remote repository`);
+
+        for (let i = 0; i < remoteFiles.length; i++) {
+          const remoteFile = remoteFiles[i];
+          const localFile = currentFileMap.get(remoteFile.path);
+
+          try {
+            if (!localFile || localFile.githubSha !== remoteFile.sha) {
+              if (localFile?.isDirty && localFile.githubSha !== remoteFile.sha) {
+                console.log(`[Pull] Conflict detected: ${remoteFile.path}`);
+                conflicts.push(localFile);
+                set({ pullProgress: i + 1 });
+                continue;
+              }
+
+              console.log(`[Pull] Updating file: ${remoteFile.path}`);
+              await upsertFile(remoteFile.path, localFile);
+              updatedCount++;
+            }
+
+            set({ pullProgress: i + 1 });
+          } catch (error) {
+            console.error(`[Pull] Failed to pull ${remoteFile.path}:`, error);
+            // Continue with other files even if one fails
+          }
         }
       }
 
-      // Update repository's lastSync timestamp
+      // Record the synced commit only when fully applied; if conflicts remain,
+      // keep the old base so the unresolved files are re-offered next pull.
       await db.repositories.update(repo.id, {
         lastSync: new Date().toISOString(),
+        ...(conflicts.length === 0 ? { lastSyncCommitSha: headSha } : {}),
       });
 
       console.log(`[Pull] Pull complete. ${updatedCount} files updated, ${conflicts.length} conflicts`);

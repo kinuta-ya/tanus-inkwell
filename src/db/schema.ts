@@ -9,6 +9,7 @@ export interface StoredRepository extends Repository {
   private: boolean;
   lastSync: string | null;
   fileCount: number;
+  lastSyncCommitSha?: string;
 }
 
 export interface StoredFile extends FileData {
