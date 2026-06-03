@@ -123,3 +123,24 @@ ruby rt {
   scrollbar-width: auto;
   scrollbar-color: rgba(0, 0, 0, 0.3) rgba(0, 0, 0, 0.05);
 }
+
+/* Horizontal preview: keep content within the device width by wrapping, rather
+   than overflowing off-screen where it can't be scrolled to (the horizontal
+   container hides overflow-x). Scoped to horizontal-tb so vertical writing —
+   which is meant to scroll horizontally — is left untouched. */
+.preview-container [style*="horizontal-tb"] {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.preview-container [style*="horizontal-tb"] pre {
+  white-space: pre-wrap;
+}
+
+.preview-container [style*="horizontal-tb"] pre,
+.preview-container [style*="horizontal-tb"] code,
+.preview-container [style*="horizontal-tb"] img,
+.preview-container [style*="horizontal-tb"] table {
+  max-width: 100%;
+}
+
