@@ -13,9 +13,15 @@ interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   onSave?: () => void;
+  // Navigate to the previous/next file in the tree (undefined at the ends).
+  // Surfaced in preview mode so the next chapter can be read straight through.
+  onPrevFile?: () => void;
+  onNextFile?: () => void;
+  prevFileName?: string;
+  nextFileName?: string;
 }
 
-export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps) => {
+export const MarkdownEditor = ({ value, onChange, onSave, onPrevFile, onNextFile, prevFileName, nextFileName }: MarkdownEditorProps) => {
   const [showPreview, setShowPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -183,6 +189,33 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
               >
                 <span className="hidden md:inline">縦</span>
                 <span className="md:hidden text-xs">｜</span>
+              </button>
+            </>
+          )}
+
+          {/* Prev/Next file navigation (only in preview) */}
+          {showPreview && (
+            <>
+              <div className="hidden sm:block w-px h-4 bg-gray-300 mx-1" />
+              <button
+                onClick={onPrevFile}
+                disabled={!onPrevFile}
+                className="p-1.5 sm:p-2 md:px-2 md:py-1 text-sm font-medium rounded transition flex-shrink-0 text-gray-600 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={prevFileName ? `前のファイル：${prevFileName}` : '前のファイルはありません'}
+                aria-label="前のファイル"
+              >
+                <span className="hidden md:inline">‹ 前のファイル</span>
+                <span className="md:hidden">‹</span>
+              </button>
+              <button
+                onClick={onNextFile}
+                disabled={!onNextFile}
+                className="p-1.5 sm:p-2 md:px-2 md:py-1 text-sm font-medium rounded transition flex-shrink-0 text-gray-600 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={nextFileName ? `次のファイル：${nextFileName}` : '次のファイルはありません'}
+                aria-label="次のファイル"
+              >
+                <span className="hidden md:inline">次のファイル ›</span>
+                <span className="md:hidden">›</span>
               </button>
             </>
           )}
