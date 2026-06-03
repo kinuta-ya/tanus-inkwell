@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { StoredFile } from '../../db/schema';
 
 interface FileNode {
@@ -35,6 +35,39 @@ export const FileTree = ({ files, currentFilePath, onFileSelect, onCreateFile, o
     }
     return new Set(['/']);
   });
+
+  // Auto-expand the folders leading to the currently open file so it is
+  // always visible without manually re-expanding the tree (e.g. after a
+  // reload or when the file pane is reopened). Existing expansions are kept.
+  useEffect(() => {
+    if (!currentFilePath) return;
+    const parts = currentFilePath.split('/');
+    const ancestors: string[] = [];
+    for (let i = 0; i < parts.length - 1; i++) {
+      ancestors.push(parts.slice(0, i + 1).join('/'));
+    }
+    if (ancestors.length === 0) return;
+
+    setExpandedDirs((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const dir of ancestors) {
+        if (!next.has(dir)) {
+          next.add(dir);
+          changed = true;
+        }
+      }
+      if (!changed) return prev;
+      if (persistKey) {
+        try {
+          localStorage.setItem(EXPANDED_DIRS_STORAGE_PREFIX + persistKey, JSON.stringify([...next]));
+        } catch {
+          // Ignore storage write failures (e.g. private mode quota).
+        }
+      }
+      return next;
+    });
+  }, [currentFilePath, persistKey]);
 
   // Build tree structure from flat file list
   const fileTree = useMemo(() => {
