@@ -7,6 +7,10 @@ interface RepositoryState {
   repositories: Repository[];
   currentRepository: Repository | null;
   isLoading: boolean;
+  // Ids of repositories whose Markdown fetch is currently running. Lives in the
+  // store (not a component) so the sync keeps going — and stays visible in the
+  // global banner — even after navigating away from the repository list.
+  syncingRepoIds: string[];
   error: string | null;
 }
 
@@ -24,6 +28,7 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   repositories: [],
   currentRepository: null,
   isLoading: false,
+  syncingRepoIds: [],
   error: null,
 
   // Actions
@@ -49,7 +54,10 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   },
 
   syncRepository: async (token: string, repo: Repository) => {
-    set({ isLoading: true, error: null });
+    // Guard against kicking off a second concurrent fetch for the same repo
+    // (e.g. double-click, or pressing it again from another screen).
+    if (get().syncingRepoIds.includes(repo.id)) return;
+    set((state) => ({ syncingRepoIds: [...state.syncingRepoIds, repo.id], error: null }));
     try {
       const [owner, repoName] = repo.fullName.split('/');
       console.log(`[Sync] Starting sync for ${repo.fullName} (repoId: ${repo.id})`);
@@ -121,13 +129,16 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
           : r
       );
 
-      set({ repositories: updatedRepos, isLoading: false });
+      set({ repositories: updatedRepos });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to sync repository',
-        isLoading: false,
       });
       throw error;
+    } finally {
+      set((state) => ({
+        syncingRepoIds: state.syncingRepoIds.filter((id) => id !== repo.id),
+      }));
     }
   },
 }));

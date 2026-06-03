@@ -4,10 +4,12 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { RepositoriesPage } from './pages/RepositoriesPage';
 import { EditorPage } from './pages/EditorPage';
 import { DebugPanel } from './components/DebugPanel';
+import { SyncBanner } from './components/sync/SyncBanner';
 
 function App() {
   return (
     <>
+      <SyncBanner />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginScreen />} />

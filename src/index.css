@@ -6,6 +6,17 @@ body {
   color: rgb(17 24 39);
 }
 
+/* Sync banner ticker: scrolls the message from left to right. The text is
+   duplicated in the markup, so shifting by one copy (50%) loops seamlessly. */
+@keyframes marquee {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 /* Vertical writing mode improvements */
 [style*="writing-mode: vertical-rl"] {
   text-orientation: mixed;
