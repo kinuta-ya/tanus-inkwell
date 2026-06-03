@@ -17,6 +17,9 @@ export interface Repository {
   private: boolean;
   lastSync: string | null;
   fileCount: number;
+  // HEAD commit SHA at the time of the last successful sync/pull. Used to pull
+  // only the diff since then. Undefined until the first sync completes.
+  lastSyncCommitSha?: string;
 }
 
 // File data type

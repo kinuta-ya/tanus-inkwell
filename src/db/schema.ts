@@ -9,6 +9,7 @@ export interface StoredRepository extends Repository {
   private: boolean;
   lastSync: string | null;
   fileCount: number;
+  lastSyncCommitSha?: string;
 }
 
 export interface StoredFile extends FileData {
@@ -46,3 +47,27 @@ export class TanusInkwellDB extends Dexie {
 }
 
 export const db = new TanusInkwellDB();
+
+// Fixed id for the single app-wide settings record
+export const APP_SETTINGS_ID = 'app';
+
+export async function getAppSettings(): Promise<AppSettings | undefined> {
+  return db.settings.get(APP_SETTINGS_ID);
+}
+
+/**
+ * Persist the file currently open in the editor so it can be restored on reload
+ * or when navigating back to the editor. Pass null for filePath to clear it.
+ */
+export async function setCurrentFilePath(
+  repoId: string,
+  filePath: string | null
+): Promise<void> {
+  const existing = await db.settings.get(APP_SETTINGS_ID);
+  await db.settings.put({
+    id: APP_SETTINGS_ID,
+    theme: existing?.theme ?? 'light',
+    currentRepoId: repoId,
+    currentFilePath: filePath,
+  });
+}

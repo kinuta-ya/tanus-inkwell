@@ -41,9 +41,77 @@ export interface GitHubFileContent {
   encoding?: string;
 }
 
+export type GitHubCompareFileStatus =
+  | 'added'
+  | 'modified'
+  | 'removed'
+  | 'renamed'
+  | 'copied'
+  | 'changed'
+  | 'unchanged';
+
+export interface GitHubCompareFile {
+  filename: string;
+  status: GitHubCompareFileStatus;
+  sha: string;
+  previous_filename?: string;
+}
+
 class GitHubRepositoryService {
   private getOctokit(token: string): Octokit {
     return createOctokitClient(token);
+  }
+
+  /**
+   * Get the latest commit SHA for the repository's default branch.
+   * Falls back from 'main' to 'master' like getRepositoryTree.
+   */
+  async getLatestCommit(
+    token: string,
+    owner: string,
+    repo: string,
+    branch: string = 'main'
+  ): Promise<{ branch: string; sha: string }> {
+    try {
+      const octokit = this.getOctokit(token);
+      const { data } = await octokit.request('GET /repos/{owner}/{repo}/git/ref/{ref}', {
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+      });
+      return { branch, sha: data.object.sha };
+    } catch (error) {
+      if (branch === 'main') {
+        return this.getLatestCommit(token, owner, repo, 'master');
+      }
+      console.error('Failed to fetch latest commit:', error);
+      throw new Error('Failed to fetch latest commit');
+    }
+  }
+
+  /**
+   * Compare two commits and return the list of changed files (added, modified,
+   * removed, renamed). Used to pull only the diff since the last sync.
+   */
+  async compareCommits(
+    token: string,
+    owner: string,
+    repo: string,
+    base: string,
+    head: string
+  ): Promise<GitHubCompareFile[]> {
+    try {
+      const octokit = this.getOctokit(token);
+      const { data } = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+        owner,
+        repo,
+        basehead: `${base}...${head}`,
+      });
+      return (data.files ?? []) as GitHubCompareFile[];
+    } catch (error) {
+      console.error('Failed to compare commits:', error);
+      throw new Error('Failed to compare commits');
+    }
   }
 
   /**
