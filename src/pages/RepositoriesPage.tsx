@@ -8,9 +8,8 @@ import type { Repository } from '../types';
 export const RepositoriesPage = () => {
   const navigate = useNavigate();
   const { githubToken } = useAuthStore();
-  const { repositories, isLoading, error, fetchRepositories, setCurrentRepository, syncRepository, clearError } =
+  const { repositories, isLoading, syncingRepoIds, error, fetchRepositories, setCurrentRepository, syncRepository, clearError } =
     useRepositoryStore();
-  const [syncingRepoId, setSyncingRepoId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,15 +39,12 @@ export const RepositoriesPage = () => {
     }
 
     setSuccessMessage(null);
-    setSyncingRepoId(repo.id);
     try {
       await syncRepository(githubToken, repo);
       setSuccessMessage(`${repo.name} の同期が完了しました`);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (error) {
       console.error('Sync failed:', error);
-    } finally {
-      setSyncingRepoId(null);
     }
   };
 
@@ -128,7 +124,7 @@ export const RepositoriesPage = () => {
                 repository={repo}
                 onSelect={handleSelectRepository}
                 onSync={handleSyncRepository}
-                isSyncing={syncingRepoId === repo.id}
+                isSyncing={syncingRepoIds.includes(repo.id)}
               />
             ))}
           </div>

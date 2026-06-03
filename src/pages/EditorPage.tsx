@@ -12,6 +12,7 @@ import { SyncMenu } from '../components/sync/SyncMenu';
 import { CreateFileModal } from '../components/file/CreateFileModal';
 import { RenameFileModal } from '../components/file/RenameFileModal';
 import { db, getAppSettings, setCurrentFilePath, type StoredFile } from '../db/schema';
+import { getFilesInTreeOrder } from '../utils/fileOrder';
 import { useLiveQuery } from 'dexie-react-hooks';
 
 export const EditorPage = () => {
@@ -74,6 +75,19 @@ export const EditorPage = () => {
       void setCurrentFilePath(repoId, file.path);
     }
   }, [repoId]);
+
+  // Files in left-pane display order, so the preview can step to the
+  // previous/next file (e.g. reading the next chapter straight through).
+  const orderedFiles = useMemo(() => getFilesInTreeOrder(files || []), [files]);
+  const currentIndex = useMemo(
+    () => (currentFile ? orderedFiles.findIndex((f) => f.id === currentFile.id) : -1),
+    [orderedFiles, currentFile]
+  );
+  const prevFile = currentIndex > 0 ? orderedFiles[currentIndex - 1] : undefined;
+  const nextFile =
+    currentIndex >= 0 && currentIndex < orderedFiles.length - 1
+      ? orderedFiles[currentIndex + 1]
+      : undefined;
 
   // Restore the last opened file when entering the editor (once per repo).
   useEffect(() => {
@@ -427,6 +441,10 @@ export const EditorPage = () => {
               value={editorContent}
               onChange={handleEditorChange}
               onSave={handleSave}
+              onPrevFile={prevFile ? () => handleFileSelect(prevFile) : undefined}
+              onNextFile={nextFile ? () => handleFileSelect(nextFile) : undefined}
+              prevFileName={prevFile?.path.split('/').pop()}
+              nextFileName={nextFile?.path.split('/').pop()}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-gray-500 p-4">
