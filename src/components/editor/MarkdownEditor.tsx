@@ -36,7 +36,10 @@ export const MarkdownEditor = ({ value, onChange, onSave }: MarkdownEditorProps)
 
   useEffect(() => {
     if (showPreview) {
-      let html = marked.parse(value || '') as string;
+      // breaks: true so a single newline becomes <br> — matches how prose is
+      // written line-by-line in the editor (Markdown would otherwise collapse
+      // single newlines into the same paragraph).
+      let html = marked.parse(value || '', { breaks: true, gfm: true }) as string;
       // Apply ruby and bouten rendering
       html = renderRubyAndBouten(html);
       setPreviewHtml(html);
