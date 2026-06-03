@@ -192,8 +192,8 @@ export const FileTree = ({ files, currentFilePath, onFileSelect, onCreateFile, o
           <div className="font-medium text-blue-900 mb-1">ヒント：</div>
           <div className="text-blue-700">
             リポジトリ一覧ページで<br />
-            「同期」ボタンを押して<br />
-            ファイルをダウンロードしてください
+            「Markdownを読み込む」ボタンを押して<br />
+            ファイルを読み込んでください
           </div>
         </div>
       </div>
