@@ -7,7 +7,7 @@ import { useEditorSettingsStore, FONT_CONFIG, BACKGROUND_CONFIG } from '../../st
 import { SettingsPanel } from './SettingsPanel';
 import { MobileToolbar } from './MobileToolbar';
 import { FloatingToolbar } from './FloatingToolbar';
-import { renderRubyAndBouten } from '../../utils/markdownRenderer';
+import { renderRubyAndBouten, toNarouFormat } from '../../utils/markdownRenderer';
 import { copyTextToClipboard } from '../../utils/clipboard';
 
 interface MarkdownEditorProps {
@@ -268,9 +268,9 @@ export const MarkdownEditor = ({ value, onChange, onSave, onPrevFile, onNextFile
                 <span className="whitespace-nowrap">{copied === 'title' ? 'コピー✓' : 'タイトル'}</span>
               </button>
               <button
-                onClick={() => handleCopy('body', value)}
+                onClick={() => handleCopy('body', toNarouFormat(value))}
                 className="flex items-center gap-1 px-2 py-1 text-xs sm:text-sm font-medium rounded transition flex-shrink-0 text-gray-700 hover:bg-gray-200"
-                title="本文をプレーンテキスト（改行あり）でコピー"
+                title="本文をなろう記法（改行あり）でコピー"
                 aria-label="本文をコピー"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

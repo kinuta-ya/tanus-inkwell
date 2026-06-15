@@ -53,6 +53,35 @@ export function renderRubyAndBouten(html: string): string {
 }
 
 /**
+ * Convert the editor's ruby/bouten notation to 小説家になろう (Narou) format,
+ * for pasting an episode body into Narou.
+ *
+ * - Ruby:   親文字《ふりがな》 -> ｜親文字《ふりがな》  (explicit full-width pipe so
+ *           kana-containing base text isn't mis-detected on Narou)
+ * - Bouten: 親文字《・・》     -> 《《親文字》》          (Narou emphasis-dots)
+ *
+ * Bouten is handled before ruby (mirroring renderRubyAndBouten) so the dot
+ * marker 《・・》 isn't mistaken for a ruby reading.
+ */
+export function toNarouFormat(text: string): string {
+  // Bouten: base text followed by 《・...》 -> 《《base》》
+  let out = text.replace(
+    /([一-龠々〆ヵヶぁ-んァ-ヶーa-zA-Z0-9]+)《(・+)》/g,
+    (_match, baseText) => `《《${baseText}》》`
+  );
+
+  // Ruby: base text + 《reading》 -> ｜base《reading》. The lookbehind keeps the
+  // match starting at the head of a run, so an already-piped ｜base《》 is left
+  // alone and the pipe isn't inserted mid-run.
+  out = out.replace(
+    /(?<![｜一-龠々〆ヵヶぁ-んァ-ヶー])([一-龠々〆ヵヶぁ-んァ-ヶー]+)《([^》]+)》/g,
+    (_match, baseText, rubyText) => `｜${baseText}《${rubyText}》`
+  );
+
+  return out;
+}
+
+/**
  * Strip ruby and bouten notation for plain text
  * Useful for character counting without markup
  */
