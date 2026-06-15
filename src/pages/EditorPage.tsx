@@ -445,6 +445,7 @@ export const EditorPage = () => {
               onNextFile={nextFile ? () => handleFileSelect(nextFile) : undefined}
               prevFileName={prevFile?.path.split('/').pop()}
               nextFileName={nextFile?.path.split('/').pop()}
+              title={(currentFile.path.split('/').pop() || '').replace(/\.(md|markdown)$/i, '')}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-gray-500 p-4">
