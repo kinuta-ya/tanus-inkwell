@@ -8,6 +8,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { MobileToolbar } from './MobileToolbar';
 import { FloatingToolbar } from './FloatingToolbar';
 import { renderRubyAndBouten } from '../../utils/markdownRenderer';
+import { copyTextToClipboard } from '../../utils/clipboard';
 
 interface MarkdownEditorProps {
   value: string;
@@ -19,16 +20,30 @@ interface MarkdownEditorProps {
   onNextFile?: () => void;
   prevFileName?: string;
   nextFileName?: string;
+  // Episode title (≒ file name) used by the "copy title" button in preview.
+  title?: string;
 }
 
-export const MarkdownEditor = ({ value, onChange, onSave, onPrevFile, onNextFile, prevFileName, nextFileName }: MarkdownEditorProps) => {
+export const MarkdownEditor = ({ value, onChange, onSave, onPrevFile, onNextFile, prevFileName, nextFileName, title }: MarkdownEditorProps) => {
   const [showPreview, setShowPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
+  // Which copy button last succeeded, for transient "コピーしました" feedback.
+  const [copied, setCopied] = useState<'title' | 'body' | null>(null);
   const editorRef = useRef<any>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  const handleCopy = async (kind: 'title' | 'body', text: string) => {
+    const ok = await copyTextToClipboard(text);
+    if (ok) {
+      setCopied(kind);
+      setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1500);
+    } else {
+      alert('コピーに失敗しました');
+    }
+  };
 
   const {
     fontFamily,
@@ -235,6 +250,37 @@ export const MarkdownEditor = ({ value, onChange, onSave, onPrevFile, onNextFile
               </span>
             )}
           </div>
+
+          {/* Copy buttons (only in preview) — title ≒ file name, and the body
+              as plain text with line breaks, for pasting into novel sites. */}
+          {showPreview && (
+            <>
+              <button
+                onClick={() => handleCopy('title', title || '')}
+                disabled={!title}
+                className="flex items-center gap-1 px-2 py-1 text-xs sm:text-sm font-medium rounded transition flex-shrink-0 text-gray-700 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="タイトル（ファイル名）をコピー"
+                aria-label="タイトルをコピー"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span className="whitespace-nowrap">{copied === 'title' ? 'コピー✓' : 'タイトル'}</span>
+              </button>
+              <button
+                onClick={() => handleCopy('body', value)}
+                className="flex items-center gap-1 px-2 py-1 text-xs sm:text-sm font-medium rounded transition flex-shrink-0 text-gray-700 hover:bg-gray-200"
+                title="本文をプレーンテキスト（改行あり）でコピー"
+                aria-label="本文をコピー"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span className="whitespace-nowrap">{copied === 'body' ? 'コピー✓' : '本文'}</span>
+              </button>
+              <div className="hidden sm:block w-px h-4 bg-gray-300 mx-1" />
+            </>
+          )}
 
           {/* Settings Button */}
           <button
