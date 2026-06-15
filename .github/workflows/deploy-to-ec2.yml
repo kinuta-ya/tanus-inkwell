@@ -132,7 +132,10 @@ jobs:
           echo "   - 増分転送（変更されたファイルのみ）"
           echo "   - 古いファイルは自動削除（--delete）"
 
-          rsync -avz --delete \
+          # shrine-clicker is an unrelated app living in the same deploy path,
+          # owned by another user. Exclude it so --delete doesn't try (and fail)
+          # to remove it, which otherwise fails the whole deploy with code 23.
+          rsync -avz --delete --exclude='shrine-clicker' \
             -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" \
             dist/ \
             $EC2_USER@$EC2_HOST:$DEPLOY_PATH/ 2>&1 || {
